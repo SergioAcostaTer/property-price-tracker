@@ -1,0 +1,52 @@
+server:
+  port: 8080
+
+spring:
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.kafka.KafkaAutoConfiguration
+      - org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration
+      - org.springframework.boot.autoconfigure.data.redis.RedisRepositoriesAutoConfiguration
+
+  datasource:
+    url: jdbc:postgresql://localhost:5432/app
+    username: app
+    password: app
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+    properties:
+      hibernate:
+        format_sql: true
+      jdbc:
+        lob:
+          non_contextual_creation: true
+
+  kafka:
+    bootstrap-servers: localhost:9092
+    producer:
+      acks: all
+      properties:
+        enable.idempotence: true
+        linger.ms: 5
+        compression.type: lz4
+    consumer:
+      group-id: co-result-handler
+      auto-offset-reset: latest
+
+  redis:
+    host: localhost
+    port: 6379
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+
+co:
+  auth:
+    token: "dev-token"
+    enabled: true

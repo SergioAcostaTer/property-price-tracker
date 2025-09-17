@@ -1,0 +1,17 @@
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: app
+      POSTGRES_DB: app
+    ports: ["5432:5432"]
+
+  redis:
+    image: redis:7
+    ports: ["6379:6379"]
+
+  redpanda:
+    image: docker.redpanda.com/redpandadata/redpanda:latest
+    command: redpanda start --overprovisioned --smp 1 --memory 512M --reserve-memory 0M --node-id 0 --check=false
+    ports: ["9092:9092"]
