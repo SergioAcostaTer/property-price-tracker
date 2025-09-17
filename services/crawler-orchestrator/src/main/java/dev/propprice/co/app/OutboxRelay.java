@@ -29,6 +29,7 @@ public class OutboxRelay {
         String value = o.getValue().toString();
         kafka.send(o.getTopic(), key, value).get();
         o.setAttempts(o.getAttempts() + 1);
+        o.setSentAt(java.time.OffsetDateTime.now());
         repo.save(o);
       } catch (Exception e) {
         o.setAttempts(o.getAttempts() + 1);

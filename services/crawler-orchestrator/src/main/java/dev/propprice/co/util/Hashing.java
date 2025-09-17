@@ -4,10 +4,10 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.Locale;
 
-public final class Hashing {
-  private Hashing() {
-  }
+import lombok.NoArgsConstructor;
 
+@NoArgsConstructor
+public final class Hashing {
   public static String md5(String s) {
     try {
       MessageDigest md = MessageDigest.getInstance("MD5");

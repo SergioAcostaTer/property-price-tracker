@@ -1,6 +1,8 @@
 package dev.propprice.co.app;
 
 import java.time.Instant;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -72,6 +74,7 @@ public class FrontierDispatcher {
 
     for (Claimed c : claimed) {
       UUID jobId = UUID.randomUUID();
+      OffsetDateTime nowUtc = OffsetDateTime.now(ZoneOffset.UTC);
       // job insert
       var pJob = new MapSqlParameterSource()
           .addValue("job_id", jobId)
@@ -80,7 +83,7 @@ public class FrontierDispatcher {
           .addValue("segment", c.segment.name())
           .addValue("url_hash", c.urlHash)
           .addValue("url", c.url)
-          .addValue("scheduled_at", Instant.now());
+          .addValue("scheduled_at", nowUtc);
       jdbc.update(
           """
               insert into ing.job(job_id, portal, task_type, segment, url_hash, url, attempt, status, scheduled_at, hints)

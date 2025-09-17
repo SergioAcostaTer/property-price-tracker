@@ -1,7 +1,7 @@
 package dev.propprice.co.app;
 
 import java.time.Duration;
-import java.time.Instant;
+import java.time.OffsetDateTime;
 
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
@@ -32,7 +32,7 @@ public class FrontierService {
   private int upsertOne(String portal, TaskType taskType, Segment segment, String url, int priority,
       Duration delay, String dedupeKey) {
     String urlHash = Hashing.md5(url);
-    Instant nextRun = Instant.now().plus(delay);
+    OffsetDateTime nextRun = OffsetDateTime.now().plus(delay);
     String sql = """
         insert into ing.frontier (portal, task_type, url, url_hash, segment, priority, next_run_at, status, dedupe_key, first_seen_at, scope, meta)
         values (:portal, :task_type::ing.ing_task_type, :url, :url_hash, :segment::ing.ing_segment, :priority, :next_run_at, 'active'::ing.ing_frontier_status, :dedupe_key, now(), '{}'::jsonb, '{}'::jsonb)
