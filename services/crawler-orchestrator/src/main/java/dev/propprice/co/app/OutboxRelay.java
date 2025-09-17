@@ -25,7 +25,7 @@ public class OutboxRelay {
     List<Outbox> batch = repo.fetchUnsentOrdered(100);
     for (Outbox o : batch) {
       try {
-        String key = o.getKey() == null ? "" : new String(o.getKey());
+        String key = new String(o.getKey());
         String value = o.getValue().toString();
         kafka.send(o.getTopic(), key, value).get();
         o.setAttempts(o.getAttempts() + 1);

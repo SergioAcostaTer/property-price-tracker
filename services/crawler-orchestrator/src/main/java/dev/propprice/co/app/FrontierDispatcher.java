@@ -7,7 +7,6 @@ import java.util.UUID;
 
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
-import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -29,7 +28,6 @@ public class FrontierDispatcher {
   private final NamedParameterJdbcTemplate jdbc;
   private final PolicyService policyService;
   private final RedisTokenBucket bucket;
-  private final KafkaTemplate<String, String> kafka;
   private final ObjectMapper om = new ObjectMapper();
 
   // every second, lightweight
@@ -51,9 +49,10 @@ public class FrontierDispatcher {
     PortalPolicy pol = policyService.getOrDefault(portal);
 
     // 1) respect max_concurrency (dispatched jobs)
-    int inflight = jdbc.queryForObject(
+    Integer inflightObj = jdbc.queryForObject(
         "select count(*) from ing.job where portal=:p and status='dispatched'::ing.ing_job_status",
         Map.of("p", portal), Integer.class);
+    int inflight = java.util.Objects.requireNonNullElse(inflightObj, 0);
 
     int capacity = Math.max(0, pol.getMaxConcurrency() - inflight);
     if (capacity <= 0)
