@@ -24,6 +24,7 @@ public class FrontierId implements Serializable {
   @Column(name = "task_type", nullable = false, columnDefinition = "ing_task_type")
   private TaskType taskType;
 
-  @Column(name = "url_hash", length = 32, nullable = false, columnDefinition = "char(32)")
+  @Column(name = "url_hash", columnDefinition = "char(32)", nullable = false)
   private String urlHash;
+
 }
