@@ -1,0 +1,10 @@
+{
+  "recommendations": [
+    "vscjava.vscode-java-pack",
+    "pivotal.vscode-spring-boot",
+    "richardwillis.vscode-gradle",
+    "ms-azuretools.vscode-docker",
+    "redpanda-data.redpanda",
+    "batisteo.vscode-django"
+  ]
+}

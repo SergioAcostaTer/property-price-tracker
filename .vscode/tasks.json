@@ -1,0 +1,14 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "app: bootRun (dev-local, debug)",
+      "type": "shell",
+      "options": {
+        "cwd": "${workspaceFolder}/services/crawler-orchestrator"
+      },
+      "command": ".\\gradlew.bat bootRun -Dspring-boot.run.profiles=dev-local -Dspring-boot.run.jvmArguments=\"-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005\"",
+      "problemMatcher": []
+    }
+  ]
+}

@@ -1,0 +1,20 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "type": "java",
+      "name": "Run CO (dev-local)",
+      "request": "launch",
+      "cwd": "${workspaceFolder}/services/crawler-orchestrator",
+      "mainClass": "dev.propprice.co.PropertyPriceTrackerCrawlerOrchestratorApplication",
+      "vmArgs": "-Dspring.profiles.active=dev-local"
+    },
+    {
+      "type": "java",
+      "name": "Attach 5005",
+      "request": "attach",
+      "hostName": "localhost",
+      "port": 5005
+    }
+  ]
+}
