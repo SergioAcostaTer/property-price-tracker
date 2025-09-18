@@ -19,9 +19,10 @@ spring:
     consumer:
       max-poll-records: 200
 
-  redis:
-    host: redis
-    port: 6379
+  data:
+    redis:
+      host: redis
+      port: 6379
 
 management:
   server:
