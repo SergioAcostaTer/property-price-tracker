@@ -47,8 +47,11 @@ public class Frontier {
   @Builder.Default
   private Integer priority = 5;
 
-  @Column(name = "next_run_at", nullable = false)
-  private OffsetDateTime nextRunAt;
+  @Column(name = "last_run_at", columnDefinition = "timestamptz")
+  private OffsetDateTime lastRunAt;
+
+  @Column(name = "last_result_status")
+  private Integer lastResultStatus;
 
   @Column(name = "lease_until")
   private OffsetDateTime leaseUntil;

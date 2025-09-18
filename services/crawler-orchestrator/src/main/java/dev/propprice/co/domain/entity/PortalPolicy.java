@@ -47,4 +47,8 @@ public class PortalPolicy {
   @Column(name = "backoff_sec", columnDefinition = "integer[]", nullable = false)
   @Builder.Default
   private Integer[] backoffSec = new Integer[] { 60, 300, 1800, 3600 };
+
+  @Column(name = "min_days_between_runs", nullable = false)
+  @Builder.Default
+  private int minDaysBetweenRuns = 7;
 }

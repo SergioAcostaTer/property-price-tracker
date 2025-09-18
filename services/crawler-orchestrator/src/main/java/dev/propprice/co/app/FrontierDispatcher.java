@@ -31,11 +31,14 @@ public class FrontierDispatcher {
   private final PolicyService policyService;
   private final RedisTokenBucket bucket;
   private final ObjectMapper om = new ObjectMapper();
+  private final RedisLeaderElector leader;
 
   // every second, lightweight
   @Scheduled(fixedDelay = 1000)
   public void tick() {
     // Dispatch per portal known in portal_policy
+    if (!leader.isLeader())
+      return;
     List<String> portals = jdbc.query("select portal from ing.portal_policy", (rs, i) -> rs.getString(1));
     for (String portal : portals) {
       try {
@@ -117,29 +120,34 @@ public class FrontierDispatcher {
 
   // claim N rows: lease for 2 minutes
   private List<Claimed> claimDueRows(String portal, int limit) {
-    // Use SKIP LOCKED to avoid contention if multiple nodes
     String sql = """
-        with cte as (
-          select portal, task_type, url_hash
-          from ing.frontier
-          where portal = :portal
-            and status = 'active'::ing.ing_frontier_status
-            and next_run_at <= now()
-            and (lease_until is null or lease_until <= now())
-          order by priority asc, next_run_at asc
-          for update skip locked
-          limit :lim
-        )
-        update ing.frontier f
-        set lease_until = now() + interval '2 minutes',
-            last_dispatched_at = now()
-        from cte
-        where f.portal = cte.portal and f.task_type = cte.task_type and f.url_hash = cte.url_hash
-        returning f.task_type::text, f.segment::text, f.url_hash, f.url
+          with cte as (
+            select portal, task_type, url_hash
+            from ing.frontier
+            where portal = :portal
+              and status = 'active'::ing.ing_frontier_status
+              and (lease_until is null or lease_until <= now())
+              and (
+                last_run_at is null
+                or last_run_at <= now() - (interval '1 day' * :min_days_between_runs)
+              )
+            order by priority asc, coalesce(last_run_at, 'epoch') asc, first_seen_at asc
+            for update skip locked
+            limit :lim
+          )
+          update ing.frontier f
+          set lease_until = now() + interval '2 minutes',
+              last_dispatched_at = now()
+          from cte
+          where f.portal = cte.portal and f.task_type = cte.task_type and f.url_hash = cte.url_hash
+          returning f.task_type::text, f.segment::text, f.url_hash, f.url
         """;
+    int minDays = policyService.getOrDefault(portal).getMinDaysBetweenRuns();
     MapSqlParameterSource p = new MapSqlParameterSource()
         .addValue("portal", portal)
-        .addValue("lim", limit);
+        .addValue("lim", limit)
+        .addValue("min_days_between_runs", minDays);
+
     return jdbc.query(sql, p, (rs, i) -> new Claimed(
         TaskType.valueOf(rs.getString(1)),
         Segment.valueOf(rs.getString(2)),

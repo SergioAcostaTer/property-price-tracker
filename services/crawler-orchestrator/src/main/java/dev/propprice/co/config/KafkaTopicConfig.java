@@ -14,4 +14,12 @@ public class KafkaTopicConfig {
         .replicas(1)
         .build();
   }
+
+  @Bean
+  public NewTopic pageResultAck() {
+    return TopicBuilder.name("acq.page.ack")
+        .partitions(1)
+        .replicas(1)
+        .build();
+  }
 }
