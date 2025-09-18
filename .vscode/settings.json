@@ -1,4 +1,10 @@
 {
-  "java.import.gradle.enabled": true,
-  "java.configuration.updateBuildConfiguration": "automatic"
+  "java.configuration.runtimes": [
+    {
+      "name": "JavaSE-21",
+      "path": "${env:JAVA_HOME}",
+      "default": true
+    }
+  ],
+  "java.debug.settings.hotCodeReplace": "auto"
 }

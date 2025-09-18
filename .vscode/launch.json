@@ -3,18 +3,20 @@
   "configurations": [
     {
       "type": "java",
-      "name": "Run CO (dev-local)",
-      "request": "launch",
-      "cwd": "${workspaceFolder}/services/crawler-orchestrator",
-      "mainClass": "dev.propprice.co.PropertyPriceTrackerCrawlerOrchestratorApplication",
-      "vmArgs": "-Dspring.profiles.active=dev-local"
-    },
-    {
-      "type": "java",
-      "name": "Attach 5005",
+      "name": "Attach: Docker app (5005)",
       "request": "attach",
       "hostName": "localhost",
       "port": 5005
+    },
+    {
+      "type": "java",
+      "name": "Launch: App (dev-local)",
+      "request": "launch",
+      "cwd": "${workspaceFolder}/services/crawler-orchestrator",
+      "mainClass": "dev.propprice.co.PropertyPriceTrackerCrawlerOrchestratorApplication",
+      "console": "integratedTerminal",
+      "vmArgs": "-Dspring.profiles.active=dev -Dspring.datasource.url=jdbc:postgresql://localhost:15432/app -Dspring.datasource.username=app -Dspring.datasource.password=app -Dspring.kafka.bootstrap-servers=localhost:19092 -Dspring.redis.host=localhost -Dspring.redis.port=16379",
+      "preLaunchTask": "Dev: infra up"
     }
   ]
 }

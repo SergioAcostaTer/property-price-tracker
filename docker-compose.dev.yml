@@ -1,0 +1,73 @@
+name: propprice-dev
+
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: app
+      POSTGRES_DB: app
+    ports:
+      - "15432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U app -d app || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+  redis:
+    image: redis:7
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    ports:
+      - "16379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "PING"]
+    restart: unless-stopped
+
+  redpanda:
+    image: docker.redpanda.com/redpandadata/redpanda:latest
+    command: >
+      redpanda start
+      --overprovisioned
+      --smp 1
+      --memory 512M
+      --reserve-memory 0M
+      --node-id 0
+      --check=false
+      --kafka-addr PLAINTEXT://0.0.0.0:9092,OUTSIDE://0.0.0.0:19092
+      --advertise-kafka-addr PLAINTEXT://redpanda:9092,OUTSIDE://localhost:19092
+      --rpc-addr 0.0.0.0:33145
+      --advertise-rpc-addr redpanda:33145
+    ports:
+      - "19092:19092"   # for host clients
+    healthcheck:
+      test: ["CMD-SHELL", "rpk cluster info --brokers redpanda:9092 >/dev/null 2>&1 || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 60
+
+  app:
+    build:
+      context: ./services/crawler-orchestrator
+      dockerfile: Dockerfile
+    environment:
+      SPRING_PROFILES_ACTIVE: dev
+      # use spring.redis.* because your application.yml uses that prefix
+      SPRING_REDIS_HOST: redis
+      SPRING_REDIS_PORT: 6379
+      DB_USER: app
+      DB_PASSWORD: app
+      DB_NAME: app
+      # Remote debug enabled:
+      JAVA_TOOL_OPTIONS: "-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      redpanda:
+        condition: service_healthy
+    ports:
+      - "8080:8080"   # app
+      - "5005:5005"   # debug
+    restart: unless-stopped

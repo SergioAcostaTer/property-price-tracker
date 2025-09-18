@@ -1,0 +1,58 @@
+name: propprice-prod
+
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME:-app}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME:-app} || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+    restart: unless-stopped
+
+  redis:
+    image: redis:7
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    restart: unless-stopped
+
+  redpanda:
+    image: docker.redpanda.com/redpandadata/redpanda:latest
+    command: >
+      redpanda start
+      --smp 2
+      --memory 1G
+      --reserve-memory 0M
+      --node-id 0
+      --check=false
+      --kafka-addr PLAINTEXT://0.0.0.0:9092
+      --advertise-kafka-addr PLAINTEXT://redpanda:9092
+      --rpc-addr 0.0.0.0:33145
+      --advertise-rpc-addr redpanda:33145
+    restart: unless-stopped
+
+  app:
+    build:
+      context: ./services/crawler-orchestrator
+      dockerfile: Dockerfile
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      SPRING_REDIS_HOST: redis
+      SPRING_REDIS_PORT: 6379
+      CO_AUTH_TOKEN: ${CO_AUTH_TOKEN}
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_NAME: ${DB_NAME:-app}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      redpanda:
+        condition: service_healthy
+    ports:
+      - "8080:8080"
+    restart: unless-stopped

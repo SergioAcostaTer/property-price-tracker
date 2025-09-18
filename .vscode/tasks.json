@@ -2,13 +2,29 @@
   "version": "2.0.0",
   "tasks": [
     {
-      "label": "app: bootRun (dev-local, debug)",
+      "label": "Dev: infra up",
       "type": "shell",
-      "options": {
-        "cwd": "${workspaceFolder}/services/crawler-orchestrator"
-      },
-      "command": ".\\gradlew.bat bootRun -Dspring-boot.run.profiles=dev-local -Dspring-boot.run.jvmArguments=\"-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005\"",
-      "problemMatcher": []
+      "command": "docker compose -f \"${workspaceFolder}/docker-compose.dev.yml\" up -d --build"
+    },
+    {
+      "label": "Dev: infra down",
+      "type": "shell",
+      "command": "docker compose -f \"${workspaceFolder}/docker-compose.dev.yml\" down -v"
+    },
+    {
+      "label": "Prod: up",
+      "type": "shell",
+      "command": "docker compose -f \"${workspaceFolder}/docker-compose.prod.yml\" --env-file \"${workspaceFolder}/.env.prod\" up -d --build"
+    },
+    {
+      "label": "Prod: down",
+      "type": "shell",
+      "command": "docker compose -f \"${workspaceFolder}/docker-compose.prod.yml\" down -v"
+    },
+    {
+      "label": "Logs: app (dev)",
+      "type": "shell",
+      "command": "docker compose -f \"${workspaceFolder}/docker-compose.dev.yml\" logs -f app"
     }
   ]
 }

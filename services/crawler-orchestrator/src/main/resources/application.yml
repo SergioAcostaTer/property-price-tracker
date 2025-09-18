@@ -5,60 +5,22 @@ spring:
   application:
     name: crawler-orchestrator
 
-  jackson:
-    serialization:
-      WRITE_DATES_AS_TIMESTAMPS: false
-
-  data:
-    redis:
-      repositories:
-        enabled: false
-
   datasource:
     driver-class-name: org.postgresql.Driver
-    url: jdbc:postgresql://postgres:5432/app       # <— container host
+    url: jdbc:postgresql://postgres:5432/${DB_NAME:app}
     username: ${DB_USER:app}
     password: ${DB_PASSWORD:app}
-    hikari:
-      maximum-pool-size: 10
-      minimum-idle: 2
-      idle-timeout: 30000
-      max-lifetime: 600000
-      connection-timeout: 30000
 
   jpa:
     hibernate:
       ddl-auto: none
     open-in-view: false
-    properties:
-      hibernate:
-        format_sql: false
-      jdbc:
-        lob:
-          non_contextual_creation: true
 
   kafka:
-    bootstrap-servers: redpanda:9092              # <— container host
-    producer:
-      acks: all
-      properties:
-        enable.idempotence: true
-        compression.type: lz4
-        linger.ms: 10
-        batch.size: 65536
-        max.in.flight.requests.per.connection: 1
-        delivery.timeout.ms: 120000
-        request.timeout.ms: 30000
-      retries: 10
-    consumer:
-      auto-offset-reset: latest
-      enable-auto-commit: false
-      max-poll-records: 100
-    listener:
-      missing-topics-fatal: false
+    bootstrap-servers: redpanda:9092
 
   redis:
-    host: redis                                   # <— container host
+    host: redis
     port: 6379
 
 management:
@@ -66,29 +28,3 @@ management:
     web:
       exposure:
         include: health,info,metrics,prometheus
-  metrics:
-    tags:
-      application: ${spring.application.name}
-  prometheus:
-    metrics:
-      export:
-        enabled: true
-
-logging:
-  level:
-    root: info
-    dev.propprice.co: info
-  file:
-    name: logs/app.log
-
-co:
-  auth:
-    enabled: true
-    token: ${CO_AUTH_TOKEN:}
-
-co.dispatcher:
-  enabled: true
-  tick-interval: 1000
-  max-consecutive-failures: 5
-  lease-duration-minutes: 2
-  max-batch-size: 50

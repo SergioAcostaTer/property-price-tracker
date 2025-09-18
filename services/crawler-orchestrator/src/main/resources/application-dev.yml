@@ -1,40 +1,4 @@
-spring:
-  datasource:
-    url: jdbc:postgresql://postgres:5432/app
-    username: app
-    password: app
-  kafka:
-    bootstrap-servers: redpanda:9092
-  data:
-    redis:
-      host: redis
-      port: 6379
-
-  jpa:
-    properties:
-      hibernate:
-        format_sql: true
-  main:
-    banner-mode: console
-
-management:
-  endpoints:
-    web:
-      exposure:
-        include: "*"
-
 logging:
   level:
     root: info
-    org.hibernate.SQL: debug
-    org.hibernate.orm.jdbc.bind: trace
     dev.propprice.co: debug
-  file:
-    name: /tmp/app-dev.log
-
-co:
-  auth:
-    enabled: false
-  dispatcher:
-    max-batch-size: 10
-    tick-interval: 1000
