@@ -32,6 +32,7 @@ dependencies {
     implementation("org.flywaydb:flyway-core")
     implementation("org.flywaydb:flyway-database-postgresql")
     implementation("org.springframework.boot:spring-boot-starter-validation")
+    implementation("com.networknt:json-schema-validator:1.5.2") 
 
     // >>> REQUIRED for JSONB, int[] and PostgreSQL ENUM mappings (com.vladmihalcea.*)
     implementation("com.vladmihalcea:hibernate-types-60:2.21.1")

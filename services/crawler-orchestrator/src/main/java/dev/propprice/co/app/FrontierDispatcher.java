@@ -20,6 +20,8 @@ import dev.propprice.co.config.KafkaTopics;
 import dev.propprice.co.domain.entity.PortalPolicy;
 import dev.propprice.co.domain.enums.Segment;
 import dev.propprice.co.domain.enums.TaskType;
+import dev.propprice.co.schema.SchemaValidator;
+import dev.propprice.co.schema.Schemas;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -112,11 +114,20 @@ public class FrontierDispatcher {
       req.put("url_hash", c.urlHash);
       req.put("attempt", 1);
 
+      SchemaValidator.validate(Schemas.JOB_DISPATCHED_V1, evt);
+
+      var headersJson = om.createObjectNode();
+      headersJson.put("content-type", "application/json");
+      headersJson.put("schema", "acq.job.dispatched@v1");
+      headersJson.put("ce_type", "acq.job.dispatched");
+      headersJson.put("ce_id", evt.get("event_id").asText());
+      headersJson.put("ce_source", "co");
+
       var pOut = new MapSqlParameterSource()
           .addValue("topic", KafkaTopics.JOB_DISPATCHED)
           .addValue("k", jobId.toString().getBytes())
           .addValue("v", evt.toString())
-          .addValue("headers", "{}");
+          .addValue("headers", headersJson.toString());
       jdbc.update(
           """
               insert into ing.outbox(topic, k, v, headers, created_at) values (:topic, :k, cast(:v as jsonb), cast(:headers as jsonb), now())

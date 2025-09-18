@@ -2,6 +2,8 @@ package dev.propprice.co.app;
 
 import java.util.List;
 
+import org.apache.kafka.clients.producer.ProducerRecord;
+import org.apache.kafka.common.header.internals.RecordHeaders;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
@@ -24,10 +26,26 @@ public class OutboxRelay {
   public void drain() {
     List<Outbox> batch = repo.fetchUnsentOrdered(100);
     for (Outbox o : batch) {
+
       try {
-        String key = new String(o.getKey());
+        String topic = o.getTopic();
+        String key = o.getKey() != null ? new String(o.getKey()) : null;
         String value = o.getValue().toString();
-        kafka.send(o.getTopic(), key, value).get();
+
+        var headers = new RecordHeaders();
+        if (o.getHeaders() != null && !o.getHeaders().isEmpty()) {
+          var fields = o.getHeaders().fields();
+          while (fields.hasNext()) {
+            var entry = fields.next();
+            String hKey = entry.getKey();
+            String hVal = String.valueOf(entry.getValue().asText());
+            headers.add(hKey, hVal.getBytes());
+          }
+        }
+
+        ProducerRecord<String, String> record = new ProducerRecord<>(topic, null, key, value, headers);
+        kafka.send(record).get();
+
         o.setAttempts(o.getAttempts() + 1);
         o.setSentAt(java.time.OffsetDateTime.now());
         repo.save(o);

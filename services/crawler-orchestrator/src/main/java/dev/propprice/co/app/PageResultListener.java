@@ -15,9 +15,12 @@ import org.springframework.transaction.annotation.Transactional;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import dev.propprice.co.config.KafkaTopics;
 import dev.propprice.co.domain.enums.JobStatus;
 import dev.propprice.co.domain.enums.Segment;
 import dev.propprice.co.domain.enums.TaskType;
+import dev.propprice.co.schema.SchemaValidator;
+import dev.propprice.co.schema.Schemas;
 import dev.propprice.co.util.Hashing;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -30,11 +33,14 @@ public class PageResultListener {
   private final NamedParameterJdbcTemplate jdbc;
   private final ObjectMapper om = new ObjectMapper();
 
-  @KafkaListener(topics = "acq.raw.page", groupId = "co-result-handler")
+  @KafkaListener(topics = KafkaTopics.RAW_PAGE, groupId = "co-result-handler", containerFactory = "coKafkaListenerFactory")
   @Transactional
   public void onResult(@Header(name = "ce_id", required = false) String ceId, String value) {
     try {
       JsonNode evt = om.readTree(value);
+
+      SchemaValidator.validate(Schemas.RAW_PAGE_V1, evt);
+
       int schemaVersion = evt.path("schema_version").asInt(1);
       if (schemaVersion != 1) {
         log.info("Unexpected schema_version={}, treating as v1-compatible", schemaVersion);

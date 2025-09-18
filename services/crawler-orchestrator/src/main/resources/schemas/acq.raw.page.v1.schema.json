@@ -1,0 +1,169 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "acq.raw.page.v1.schema.json",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "event_id",
+    "occurred_at",
+    "job",
+    "request",
+    "http"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "event_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "occurred_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "job": {
+      "type": "object",
+      "required": [
+        "job_id",
+        "portal",
+        "task_type",
+        "segment"
+      ],
+      "properties": {
+        "job_id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "portal": {
+          "type": "string"
+        },
+        "task_type": {
+          "type": "string",
+          "enum": [
+            "search_page",
+            "detail"
+          ]
+        },
+        "segment": {
+          "type": "string",
+          "enum": [
+            "unknown",
+            "sale",
+            "rent",
+            "short_term",
+            "room",
+            "commercial",
+            "land"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "request": {
+      "type": "object",
+      "required": [
+        "url",
+        "url_hash"
+      ],
+      "properties": {
+        "url": {
+          "type": "string"
+        },
+        "url_hash": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{32}$"
+        }
+      },
+      "additionalProperties": false
+    },
+    "http": {
+      "type": "object",
+      "required": [
+        "status"
+      ],
+      "properties": {
+        "status": {
+          "type": "integer",
+          "minimum": 100,
+          "maximum": 599
+        },
+        "headers": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "html_path": {
+          "type": "string"
+        },
+        "content_hash": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{32}$"
+        },
+        "fetched_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "error": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "parser": {
+      "type": "object",
+      "properties": {
+        "attempted": {
+          "type": "boolean"
+        },
+        "extracted_items": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": true
+    },
+    "discovered": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "url",
+          "task_type"
+        ],
+        "properties": {
+          "url": {
+            "type": "string"
+          },
+          "task_type": {
+            "type": "string",
+            "enum": [
+              "detail",
+              "search_page"
+            ]
+          },
+          "segment": {
+            "type": "string",
+            "enum": [
+              "unknown",
+              "sale",
+              "rent",
+              "short_term",
+              "room",
+              "commercial",
+              "land"
+            ]
+          },
+          "priority": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}
