@@ -31,9 +31,17 @@ spring:
         enable.idempotence: true
         linger.ms: 5
         compression.type: lz4
+        isolation.level: read_committed
+        max.in.flight.requests.per.connection: 1
+        delivery.timeout.ms: 120000
+        request.timeout.ms: 30000
     consumer:
       group-id: co-result-handler
       auto-offset-reset: latest
+      enable-auto-commit: false
+      max-poll-records: 100
+    listener:
+      missing-topics-fatal: false
 
   redis:
     host: localhost
@@ -49,3 +57,6 @@ co:
   auth:
     token: "dev-token"
     enabled: true
+    consumer:
+      
+    
