@@ -47,7 +47,7 @@ services:
       redpanda start --overprovisioned --smp 1 --memory 512M --reserve-memory 0M
       --node-id 0 --check=false
       --kafka-addr PLAINTEXT://0.0.0.0:9092
-      --advertise-kafka-addr PLAINTEXT://redpanda:9092
+      --advertise-kafka-addr PLAINTEXT://localhost:9092
       --rpc-addr 0.0.0.0:33145
       --advertise-rpc-addr redpanda:33145
     ports:
@@ -56,7 +56,7 @@ services:
     volumes:
       - redpanda_data:/var/lib/redpanda/data
     healthcheck:
-      test: ["CMD-SHELL", "rpk cluster info --brokers redpanda:9092 >/dev/null 2>&1 || exit 1"]
+      test: ["CMD-SHELL", "rpk cluster info --brokers localhost:9092 >/dev/null 2>&1 || exit 1"]
       interval: 5s
       timeout: 3s
       retries: 40
