@@ -1,7 +1,5 @@
 package dev.propprice.co.app;
 
-import java.nio.charset.StandardCharsets;
-import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -17,7 +15,6 @@ import org.springframework.transaction.annotation.Transactional;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
-import dev.propprice.co.config.KafkaTopics;
 import dev.propprice.co.domain.enums.JobStatus;
 import dev.propprice.co.domain.enums.Segment;
 import dev.propprice.co.domain.enums.TaskType;
@@ -123,27 +120,6 @@ public class PageResultListener {
                 status   = 'active'::ing.ing_frontier_status
             """, batch.toArray(MapSqlParameterSource[]::new));
       }
-
-      // 4) Emit ACK (for observability) via outbox
-      var ack = om.createObjectNode();
-      ack.put("schema_version", 1);
-      ack.put("event_id", UUID.randomUUID().toString());
-      ack.put("occurred_at", java.time.Instant.now().toString());
-      var aJob = ack.putObject("job");
-      aJob.put("job_id", jobId.toString());
-      aJob.put("portal", portal);
-      aJob.put("task_type", task.name());
-      ack.put("result_status", status);
-      ack.put("processed_at", OffsetDateTime.now().toString());
-      ack.put("discovered_count", discovered.isArray() ? discovered.size() : 0);
-
-      jdbc.update("""
-            insert into ing.outbox(topic, k, v, headers, created_at)
-            values (:topic, :k, cast(:v as jsonb), '{}'::jsonb, now())
-          """, new MapSqlParameterSource()
-          .addValue("topic", KafkaTopics.PAGE_RESULT_ACK)
-          .addValue("k", jobId.toString().getBytes(StandardCharsets.UTF_8))
-          .addValue("v", ack.toString()));
 
     } catch (Exception e) {
       log.warn("PageResultListener error (rolled back). value={}", value, e);

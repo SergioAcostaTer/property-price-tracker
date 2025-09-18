@@ -97,13 +97,20 @@ public class FrontierDispatcher {
       // outbox produce (event as JSON)
       ObjectNode evt = om.createObjectNode();
       evt.put("schema_version", 1);
-      evt.put("job_id", jobId.toString());
-      evt.put("portal", portal);
-      evt.put("task_type", c.taskType.name());
-      evt.put("segment", c.segment.name());
-      evt.put("url_hash", c.urlHash);
-      evt.put("url", c.url);
-      evt.put("dispatched_at", Instant.now().toString());
+      evt.put("event_id", UUID.randomUUID().toString());
+      evt.put("occurred_at", Instant.now().toString());
+
+      var job = evt.putObject("job");
+      job.put("job_id", jobId.toString());
+      job.put("portal", portal);
+      job.put("task_type", c.taskType.name());
+      job.put("segment", c.segment.name());
+      job.put("priority", c.taskType == TaskType.search_page ? 2 : 5);
+
+      var req = evt.putObject("request");
+      req.put("url", c.url);
+      req.put("url_hash", c.urlHash);
+      req.put("attempt", 1);
 
       var pOut = new MapSqlParameterSource()
           .addValue("topic", KafkaTopics.JOB_DISPATCHED)

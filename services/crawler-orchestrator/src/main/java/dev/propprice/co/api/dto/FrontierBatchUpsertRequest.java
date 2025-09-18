@@ -17,7 +17,6 @@ public class FrontierBatchUpsertRequest {
     private Segment segment = Segment.unknown;
     private String url;
     private Integer priority; // optional; default 5
-    private Integer next_run_in_sec; // optional; default now
     private String dedupe_key; // optional
   }
 }

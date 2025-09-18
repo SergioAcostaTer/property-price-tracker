@@ -1,7 +1,5 @@
 package dev.propprice.co.app;
 
-import java.time.Duration;
-
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Service;
@@ -20,16 +18,14 @@ public class FrontierService {
   public int batchUpsert(FrontierBatchUpsertRequest req) {
     int total = 0;
     for (var r : req.getResources()) {
-      total += upsertOne(req.getPortal(), r.getTask_type(), r.getSegment(), r.getUrl(),
-          r.getPriority() != null ? r.getPriority() : 5,
-          r.getNext_run_in_sec() != null ? Duration.ofSeconds(r.getNext_run_in_sec()) : Duration.ZERO,
-          r.getDedupe_key());
+      int priority = (r.getPriority() != null) ? r.getPriority() : 5;
+      String dedupeKey = (r.getDedupe_key() != null && !r.getDedupe_key().isBlank()) ? r.getDedupe_key() : null;
+      total += upsertOne(req.getPortal(), r.getTask_type(), r.getSegment(), r.getUrl(), priority, dedupeKey);
     }
     return total;
   }
 
-  private int upsertOne(String portal, TaskType taskType, Segment segment, String url, int priority,
-      Duration delay, String dedupeKey) {
+  private int upsertOne(String portal, TaskType taskType, Segment segment, String url, int priority, String dedupeKey) {
 
     String urlHash = Hashing.md5(url);
     String sql = """

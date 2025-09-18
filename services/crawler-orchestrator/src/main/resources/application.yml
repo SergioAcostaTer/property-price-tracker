@@ -2,6 +2,11 @@ server:
   port: 8080
 
 spring:
+  data:
+    redis:
+      repositories:
+        enabled: false
+
   datasource:
     url: jdbc:postgresql://localhost:5432/app
     username: app
