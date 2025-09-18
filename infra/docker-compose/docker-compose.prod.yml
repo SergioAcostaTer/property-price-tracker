@@ -1,6 +1,5 @@
 services:
   postgres:
-    # no published ports
     environment:
       POSTGRES_USER: ${DB_USER}
       POSTGRES_PASSWORD: ${DB_PASSWORD}
@@ -9,7 +8,6 @@ services:
   redis: {}
 
   redpanda:
-    # internal only; admin port not exposed
     command: >
       redpanda start
       --smp 2
@@ -29,15 +27,11 @@ services:
       DB_USER: ${DB_USER}
       DB_PASSWORD: ${DB_PASSWORD}
       DB_NAME: ${DB_NAME:-app}
-  # no ports published; front with an ingress/proxy if needed
+  # expose via ingress/reverse-proxy in real prod
 
-  prometheus:
-  # only available on the overlay network; scrape internal targets
-  # no host port mapping
+  prometheus: {}
 
   grafana:
-    # no host port mapping; front it behind your ingress in real prod
-    # or run grafana externally
     environment:
       GF_SECURITY_ADMIN_USER: ${GRAFANA_USER:-admin}
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin}

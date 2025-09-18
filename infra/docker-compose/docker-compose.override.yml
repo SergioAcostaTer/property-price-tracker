@@ -1,11 +1,11 @@
 services:
   postgres:
     ports:
-      - "15432:5432"   # change if you freed 5432
+      - "15432:5432"   # host -> container
 
   redis:
     ports:
-      - "16379:6379"   # change if you freed 6379
+      - "16379:6379"
 
   redpanda:
     command: >
@@ -21,8 +21,8 @@ services:
       --rpc-addr 0.0.0.0:33145
       --advertise-rpc-addr redpanda:33145
     ports:
-      - "19092:19092"
-      - "9644:9644"
+      - "19092:19092"  # external listener for host clients
+      - "9644:9644"    # admin/metrics
 
   redpanda-console:
     image: docker.redpanda.com/redpandadata/console:latest
@@ -34,8 +34,6 @@ services:
         condition: service_healthy
     ports:
       - "8082:8080"
-    restart: unless-stopped
-    networks: [appnet]
 
   crawler-orchestrator:
     environment:
