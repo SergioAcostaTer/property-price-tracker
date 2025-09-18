@@ -173,8 +173,6 @@ public class FrontierDispatcher {
     ObjectNode evt = createJobDispatchedEvent(jobId, portal, claimed, occurredAt);
     SchemaValidator.validate(Schemas.JOB_DISPATCHED_V1, evt);
 
-    // REMOVED: throw new RuntimeException("test failure");
-
     var headersJson = om.createObjectNode();
     headersJson.put("content-type", "application/json");
     headersJson.put("schema", "acq.job.dispatched@v1");
