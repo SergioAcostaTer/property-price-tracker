@@ -125,7 +125,7 @@ public class FrontierDispatcher {
 
       var pOut = new MapSqlParameterSource()
           .addValue("topic", KafkaTopics.JOB_DISPATCHED)
-          .addValue("k", c.urlHash)
+          .addValue("k", c.urlHash.getBytes())
           .addValue("v", evt.toString())
           .addValue("headers", headersJson.toString());
       jdbc.update(

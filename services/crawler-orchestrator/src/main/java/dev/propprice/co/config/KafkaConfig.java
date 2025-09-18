@@ -1,5 +1,6 @@
 package dev.propprice.co.config;
 
+import org.apache.kafka.common.TopicPartition;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -8,14 +9,15 @@ import org.springframework.kafka.core.ConsumerFactory;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.listener.DeadLetterPublishingRecoverer;
 import org.springframework.kafka.listener.DefaultErrorHandler;
-import org.springframework.kafka.support.ExponentialBackOffWithMaxRetries;
+import org.springframework.util.backoff.FixedBackOff;
 
 @Configuration
 public class KafkaConfig {
 
   @Bean
   public ConcurrentKafkaListenerContainerFactory<String, String> coKafkaListenerFactory(
-      ConsumerFactory<String, String> cf, KafkaTemplate<String, String> template,
+      ConsumerFactory<String, String> cf,
+      KafkaTemplate<String, String> template,
       @Value("${co.kafka.listener.concurrency:3}") int concurrency) {
 
     var factory = new ConcurrentKafkaListenerContainerFactory<String, String>();
@@ -23,16 +25,11 @@ public class KafkaConfig {
     factory.setConcurrency(concurrency);
     factory.setBatchListener(false);
 
-    // DLT recoverer: publish to <topic>.DLT, keep the original key and headers
-    DeadLetterPublishingRecoverer recoverer = new DeadLetterPublishingRecoverer(template, (r, e) -> {
-      String dltTopic = r.topic() + ".DLT";
-      return new org.apache.kafka.common.TopicPartition(dltTopic, r.partition());
-    });
+    DeadLetterPublishingRecoverer recoverer = new DeadLetterPublishingRecoverer(template,
+        (r, e) -> new TopicPartition(r.topic() + ".DLT", r.partition()));
 
-    var backoff = new ExponentialBackOffWithMaxRetries(5);
-    backoff.setInitialInterval(500L);
-    backoff.setMultiplier(2.0);
-    backoff.setMaxInterval(10_000L);
+    // retry 5 times, 500ms between attempts
+    FixedBackOff backoff = new FixedBackOff(500L, 5L);
 
     factory.setCommonErrorHandler(new DefaultErrorHandler(recoverer, backoff));
     return factory;
