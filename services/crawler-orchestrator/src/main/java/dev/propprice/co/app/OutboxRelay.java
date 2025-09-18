@@ -1,5 +1,6 @@
 package dev.propprice.co.app;
 
+import java.nio.charset.StandardCharsets;
 import java.time.OffsetDateTime;
 import java.util.List;
 
@@ -53,6 +54,13 @@ public class OutboxRelay {
     }
   }
 
+  // light housekeeping – keep table lean in dev
+  @Scheduled(fixedDelay = 60_000)
+  @Transactional
+  public void cleanup() {
+    repo.cleanupOldMessages();
+  }
+
   private boolean shouldAttempt(Outbox o) {
     if (o.getAttempts() == 0)
       return true;
@@ -73,7 +81,10 @@ public class OutboxRelay {
 
   private void publishMessage(Outbox o) throws Exception {
     String topic = o.getTopic();
-    String key = o.getKey() != null ? new String(o.getKey()) : null;
+    String key = null;
+    if (o.getKey() != null) {
+      key = new String(o.getKey(), StandardCharsets.UTF_8);
+    }
     String value = o.getValue().toString();
 
     var headers = buildHeaders(o.getHeaders());

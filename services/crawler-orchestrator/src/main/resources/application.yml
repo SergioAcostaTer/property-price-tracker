@@ -24,7 +24,7 @@ spring:
           non_contextual_creation: true
 
   kafka:
-    bootstrap-servers: localhost:9092
+    bootstrap-servers: localhost:19092
     producer:
       acks: all
       properties:

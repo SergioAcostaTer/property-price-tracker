@@ -1,5 +1,3 @@
-version: "3.9"
-
 networks:
   devnet:
 
@@ -14,8 +12,7 @@ services:
       POSTGRES_USER: app
       POSTGRES_PASSWORD: app
       POSTGRES_DB: app
-    ports:
-      - "5432:5432"
+    ports: ["5432:5432"]
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -24,45 +21,47 @@ services:
       timeout: 3s
       retries: 20
     restart: unless-stopped
-    networks:
-      - devnet
+    networks: [devnet]
 
   redis:
     image: redis:7
     command: ["redis-server", "--save", "", "--appendonly", "no"]
-    ports:
-      - "6379:6379"
+    ports: ["6379:6379"]
     healthcheck:
       test: ["CMD", "redis-cli", "PING"]
       interval: 5s
       timeout: 3s
       retries: 20
     restart: unless-stopped
-    networks:
-      - devnet
+    networks: [devnet]
 
   redpanda:
     image: docker.redpanda.com/redpandadata/redpanda:latest
     command: >
-      redpanda start --overprovisioned --smp 1 --memory 512M --reserve-memory 0M
-      --node-id 0 --check=false
-      --kafka-addr PLAINTEXT://0.0.0.0:9092
-      --advertise-kafka-addr PLAINTEXT://localhost:9092
+      redpanda start
+      --overprovisioned
+      --smp 1
+      --memory 512M
+      --reserve-memory 0M
+      --node-id 0
+      --check=false
+      --kafka-addr PLAINTEXT://0.0.0.0:9092,OUTSIDE://0.0.0.0:19092
+      --advertise-kafka-addr PLAINTEXT://redpanda:9092,OUTSIDE://localhost:19092
       --rpc-addr 0.0.0.0:33145
       --advertise-rpc-addr redpanda:33145
+    # Only the external listener needs host exposure
     ports:
-      - "9092:9092"
-      - "9644:9644"   # Redpanda admin API
+      - "19092:19092"
+      - "9644:9644"
     volumes:
       - redpanda_data:/var/lib/redpanda/data
     healthcheck:
-      test: ["CMD-SHELL", "rpk cluster info --brokers localhost:9092 >/dev/null 2>&1 || exit 1"]
+      test: ["CMD-SHELL", "rpk cluster info --brokers redpanda:9092 >/dev/null 2>&1 || exit 1"]
       interval: 5s
       timeout: 3s
       retries: 40
     restart: unless-stopped
-    networks:
-      - devnet
+    networks: [devnet]
 
   redpanda-console:
     image: docker.redpanda.com/redpandadata/console:latest
@@ -75,5 +74,4 @@ services:
       redpanda:
         condition: service_healthy
     restart: unless-stopped
-    networks:
-      - devnet
+    networks: [devnet]

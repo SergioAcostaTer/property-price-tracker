@@ -37,31 +37,26 @@ public class FrontierDispatcher {
   private final ObjectMapper om = new ObjectMapper();
   private final RedisLeaderElector leader;
   private final DispatcherProperties config;
+  private final LeaseService leaseService;
 
   @Scheduled(fixedDelayString = "${co.dispatcher.tick-interval:1000}")
   public void tick() {
-    if (!config.isEnabled()) {
+    if (!config.isEnabled())
       return;
-    }
-    if (!leader.isLeader()) {
+    if (!leader.isLeader())
       return;
-    }
 
     List<String> portals = getActivePortals();
     for (String portal : portals) {
       try {
         dispatchForPortal(portal);
-      } catch (InterruptedException e) {
+      } catch (InterruptedException ie) {
         Thread.currentThread().interrupt();
         log.warn("Dispatcher interrupted for portal={}", portal);
         break;
       } catch (Exception e) {
-        // This catch block was suppressing transaction rollbacks
-        // Now we log but don't catch RuntimeExceptions that should trigger rollback
-        log.error("Dispatch error for portal={}, transaction will rollback", portal, e);
-        // Don't continue with other portals if there's a critical error
-        // Or alternatively, you could continue but make sure the exception propagates
-        // properly
+        // transactional method already rolled back
+        log.error("Dispatch error for portal={} (batch rolled back)", portal, e);
       }
     }
   }
@@ -74,18 +69,15 @@ public class FrontierDispatcher {
   @Transactional
   void dispatchForPortal(String portal) throws InterruptedException {
     PortalPolicy policy = policyService.getOrDefault(portal);
-    if (policy.getMaxConcurrency() <= 0) {
+    if (policy.getMaxConcurrency() <= 0)
       return;
-    }
 
     int capacity = calculateCapacity(portal, policy);
-    if (capacity <= 0) {
+    if (capacity <= 0)
       return;
-    }
 
-    if (!checkRateLimit(portal, policy)) {
+    if (!checkRateLimit(portal, policy))
       return;
-    }
 
     int batchCap = Math.min(capacity, policy.getBucketSize());
     int batchSize = Math.min(batchCap, Math.max(1, config.getMaxBatchSize()));
@@ -102,26 +94,19 @@ public class FrontierDispatcher {
 
     log.info("Dispatching {} jobs for portal={}", claimed.size(), portal);
 
-    // Process all claims in a single transaction
-    // If any fail, the entire batch will rollback
-    for (Claimed c : claimed) {
-      try {
+    try {
+      // All-or-nothing within this transaction
+      for (Claimed c : claimed) {
         createJobAndOutboxEntry(portal, c);
-      } catch (Exception e) {
-        log.error("Failed to create job and outbox entry for portal={}, url_hash={}, rolling back entire batch",
-            portal, c.urlHash(), e);
-        // Release the leases for the entire batch since we're rolling back
-        for (Claimed claimed_item : claimed) {
-          try {
-            releaseLease(portal, claimed_item.taskType(), claimed_item.urlHash());
-          } catch (Exception releaseEx) {
-            log.warn("Failed to release lease for portal={}, url_hash={}",
-                portal, claimed_item.urlHash(), releaseEx);
-          }
-        }
-        // Re-throw to trigger transaction rollback
-        throw e;
       }
+    } catch (Exception e) {
+      // Release leases in a separate transaction so the release is not rolled back
+      try {
+        leaseService.releaseLeases(portal, claimed);
+      } catch (Exception releaseEx) {
+        log.warn("Failed to release leases for portal={} after rollback", portal, releaseEx);
+      }
+      throw e; // rethrow to rollback job/outbox inserts
     }
   }
 
@@ -143,7 +128,6 @@ public class FrontierDispatcher {
     UUID jobId = UUID.randomUUID();
     OffsetDateTime nowUtc = OffsetDateTime.now(ZoneOffset.UTC);
 
-    // Both operations must succeed or both will rollback
     insertJob(jobId, portal, claimed, nowUtc);
     insertOutboxEntry(jobId, portal, claimed, nowUtc);
   }
@@ -182,7 +166,7 @@ public class FrontierDispatcher {
 
     var params = new MapSqlParameterSource()
         .addValue("topic", KafkaTopics.JOB_DISPATCHED)
-        .addValue("k", claimed.urlHash().getBytes())
+        .addValue("k", claimed.urlHash().getBytes(java.nio.charset.StandardCharsets.UTF_8))
         .addValue("v", evt.toString())
         .addValue("headers", headersJson.toString());
 
@@ -254,20 +238,6 @@ public class FrontierDispatcher {
         Segment.valueOf(rs.getString(2)),
         rs.getString(3),
         rs.getString(4)));
-  }
-
-  private void releaseLease(String portal, TaskType taskType, String urlHash) {
-    jdbc.update("""
-        update ing.frontier
-        set lease_until = null
-        where portal = :portal
-          and task_type = :task_type::ing.ing_task_type
-          and url_hash = :url_hash
-        """,
-        new MapSqlParameterSource()
-            .addValue("portal", portal)
-            .addValue("task_type", taskType.name())
-            .addValue("url_hash", urlHash));
   }
 
   record Claimed(TaskType taskType, Segment segment, String urlHash, String url) {
