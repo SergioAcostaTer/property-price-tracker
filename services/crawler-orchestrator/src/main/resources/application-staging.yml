@@ -1,0 +1,34 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://postgres:5432/app
+    username: ${DB_USER}
+    password: ${DB_PASSWORD}
+  kafka:
+    bootstrap-servers: redpanda:9092
+  redis:
+    host: redis
+    port: 6379
+
+logging:
+  level:
+    root: info
+    dev.propprice.co: info
+  file:
+    name: /var/log/app/app-staging.log
+
+management:
+  server:
+    port: 9090
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
+co:
+  auth:
+    enabled: true
+    token: ${CO_AUTH_TOKEN}

@@ -1,0 +1,55 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://postgres:5432/app
+    username: ${DB_USER}
+    password: ${DB_PASSWORD}
+    hikari:
+      maximum-pool-size: 30
+      minimum-idle: 5
+      idle-timeout: 60000
+      max-lifetime: 900000
+      connection-timeout: 20000
+
+  kafka:
+    bootstrap-servers: redpanda:9092
+    producer:
+      properties:
+        linger.ms: 20
+        batch.size: 131072
+    consumer:
+      max-poll-records: 200
+
+  redis:
+    host: redis
+    port: 6379
+
+management:
+  server:
+    port: 9090
+    address: 0.0.0.0
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
+logging:
+  level:
+    root: info
+    dev.propprice.co: info
+  file:
+    name: /var/log/app/app.log
+  pattern:
+    level: "%5p"
+
+co:
+  auth:
+    enabled: true
+    token: ${CO_AUTH_TOKEN}
+
+co.dispatcher:
+  max-batch-size: 50
+  tick-interval: 1000

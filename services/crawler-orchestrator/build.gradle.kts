@@ -32,6 +32,8 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-validation")
     implementation("com.networknt:json-schema-validator:1.5.2")
     implementation("com.vladmihalcea:hibernate-types-60:2.21.1")
+    implementation("net.logstash.logback:logstash-logback-encoder:7.4")
+
 
     runtimeOnly("org.postgresql:postgresql")
     runtimeOnly("io.micrometer:micrometer-registry-prometheus")

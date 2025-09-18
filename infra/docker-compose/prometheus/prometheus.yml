@@ -1,0 +1,32 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: "crawler-orchestrator"
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: ["crawler-orchestrator:9090"]
+    relabel_configs:
+      - source_labels: [__address__]
+        regex: "crawler-orchestrator:9090"
+        target_label: instance
+        replacement: "crawler-orchestrator"
+
+  - job_name: "crawler-orchestrator-dev"
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: ["crawler-orchestrator:8080"]
+
+  - job_name: "redis"
+    static_configs:
+      - targets: ["redis-exporter:9121"]
+
+  - job_name: "postgres"
+    static_configs:
+      - targets: ["postgres-exporter:9187"]
+
+  - job_name: "redpanda"
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["redpanda:9644"]

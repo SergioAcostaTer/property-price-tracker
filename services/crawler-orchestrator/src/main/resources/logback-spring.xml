@@ -1,0 +1,47 @@
+<configuration scan="true">
+  <property name="LOG_DIR" value="${LOG_DIR:-logs}" />
+  <property name="APP_NAME" value="${spring.application.name:-app}" />
+
+  <!-- DEV / STAGING: human-readable console + rolling file -->
+  <springProfile name="dev,staging">
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+      <encoder>
+        <pattern>%d{HH:mm:ss.SSS} %-5level [%thread] %logger{36} - %msg%n</pattern>
+      </encoder>
+    </appender>
+
+    <appender name="FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+      <file>${LOG_FILE:-${LOG_DIR}/${APP_NAME}.log}</file>
+      <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+        <fileNamePattern>${LOG_DIR}/${APP_NAME}.%d{yyyy-MM-dd}.log.gz</fileNamePattern>
+        <maxHistory>7</maxHistory>
+      </rollingPolicy>
+      <encoder>
+        <pattern>%d{yyyy-MM-dd'T'HH:mm:ss.SSSXXX} %-5level %logger{36} - %msg%n</pattern>
+      </encoder>
+    </appender>
+
+    <root level="INFO">
+      <appender-ref ref="CONSOLE"/>
+      <appender-ref ref="FILE"/>
+    </root>
+  </springProfile>
+
+  <!-- PROD: JSON logs for shipping -->
+  <springProfile name="prod">
+    <appender name="JSON_FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+      <file>${LOG_FILE:-/var/log/app/app.log}</file>
+      <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+        <fileNamePattern>/var/log/app/app.%d{yyyy-MM-dd}.log.gz</fileNamePattern>
+        <maxHistory>14</maxHistory>
+      </rollingPolicy>
+      <encoder class="net.logstash.logback.encoder.LogstashEncoder">
+        <customFields>{"app":"${APP_NAME}","env":"prod"}</customFields>
+      </encoder>
+    </appender>
+
+    <root level="INFO">
+      <appender-ref ref="JSON_FILE"/>
+    </root>
+  </springProfile>
+</configuration>

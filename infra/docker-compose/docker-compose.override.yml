@@ -1,0 +1,56 @@
+services:
+  postgres:
+    ports:
+      - "15432:5432"   # change if you freed 5432
+
+  redis:
+    ports:
+      - "16379:6379"   # change if you freed 6379
+
+  redpanda:
+    command: >
+      redpanda start
+      --overprovisioned
+      --smp 1
+      --memory 512M
+      --reserve-memory 0M
+      --node-id 0
+      --check=false
+      --kafka-addr PLAINTEXT://0.0.0.0:9092,OUTSIDE://0.0.0.0:19092
+      --advertise-kafka-addr PLAINTEXT://redpanda:9092,OUTSIDE://localhost:19092
+      --rpc-addr 0.0.0.0:33145
+      --advertise-rpc-addr redpanda:33145
+    ports:
+      - "19092:19092"
+      - "9644:9644"
+
+  redpanda-console:
+    image: docker.redpanda.com/redpandadata/console:latest
+    environment:
+      KAFKA_BROKERS: redpanda:9092
+      KAFKA_TLS_ENABLED: "false"
+    depends_on:
+      redpanda:
+        condition: service_healthy
+    ports:
+      - "8082:8080"
+    restart: unless-stopped
+    networks: [appnet]
+
+  crawler-orchestrator:
+    environment:
+      SPRING_PROFILES_ACTIVE: dev
+      SPRING_REDIS_HOST: redis
+      SPRING_REDIS_PORT: 6379
+      LOG_DIR: /tmp
+      LOG_FILE: /tmp/app-dev.log
+    ports:
+      - "8080:8080"
+
+  prometheus:
+    ports:
+      - "9091:9090"
+
+  grafana:
+    ports:
+      - "3000:3000"

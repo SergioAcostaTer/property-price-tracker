@@ -1,0 +1,43 @@
+services:
+  postgres:
+    # no published ports
+    environment:
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME:-app}
+
+  redis: {}
+
+  redpanda:
+    # internal only; admin port not exposed
+    command: >
+      redpanda start
+      --smp 2
+      --memory 1G
+      --reserve-memory 0M
+      --node-id 0
+      --check=false
+      --kafka-addr PLAINTEXT://0.0.0.0:9092
+      --advertise-kafka-addr PLAINTEXT://redpanda:9092
+      --rpc-addr 0.0.0.0:33145
+      --advertise-rpc-addr redpanda:33145
+
+  crawler-orchestrator:
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      CO_AUTH_TOKEN: ${CO_AUTH_TOKEN}
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_NAME: ${DB_NAME:-app}
+  # no ports published; front with an ingress/proxy if needed
+
+  prometheus:
+  # only available on the overlay network; scrape internal targets
+  # no host port mapping
+
+  grafana:
+    # no host port mapping; front it behind your ingress in real prod
+    # or run grafana externally
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin}

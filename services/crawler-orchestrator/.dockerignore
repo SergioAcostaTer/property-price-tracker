@@ -1,0 +1,17 @@
+# Git
+.git
+.gitignore
+
+# IDE
+.idea
+.vscode
+*.iml
+
+# Build outputs
+build
+out
+.gradle
+
+# OS cruft
+.DS_Store
+Thumbs.db

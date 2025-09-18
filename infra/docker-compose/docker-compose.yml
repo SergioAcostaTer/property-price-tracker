@@ -1,0 +1,126 @@
+name: propprice-stack
+
+x-health-interval: &health_interval 5s
+x-health-timeout: &health_timeout 3s
+x-health-retries: &health_retries 30
+
+networks:
+  appnet:
+
+volumes:
+  pgdata:
+  redpanda_data:
+  grafana_data:
+  prometheus_data:
+  app_logs:
+
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: ${DB_USER:-app}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-app}
+      POSTGRES_DB: ${DB_NAME:-app}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-app} -d ${DB_NAME:-app}"]
+      interval: *health_interval
+      timeout: *health_timeout
+      retries: *health_retries
+    restart: unless-stopped
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks: [appnet]
+
+  redis:
+    image: redis:7
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "PING"]
+      interval: *health_interval
+      timeout: *health_timeout
+      retries: *health_retries
+    restart: unless-stopped
+    networks: [appnet]
+
+  redpanda:
+    image: docker.redpanda.com/redpandadata/redpanda:latest
+    command: >
+      redpanda start
+      --overprovisioned
+      --smp 1
+      --memory 512M
+      --reserve-memory 0M
+      --node-id 0
+      --check=false
+      --kafka-addr PLAINTEXT://0.0.0.0:9092
+      --advertise-kafka-addr PLAINTEXT://redpanda:9092
+      --rpc-addr 0.0.0.0:33145
+      --advertise-rpc-addr redpanda:33145
+    healthcheck:
+      test: ["CMD-SHELL", "rpk cluster info --brokers redpanda:9092 >/dev/null 2>&1 || exit 1"]
+      interval: *health_interval
+      timeout: *health_timeout
+      retries: 60
+    restart: unless-stopped
+    volumes:
+      - redpanda_data:/var/lib/redpanda/data
+    networks: [appnet]
+
+  # Spring Boot service
+  crawler-orchestrator:
+    build:
+      context: ../../services/crawler-orchestrator
+      dockerfile: Dockerfile
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      redpanda:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-dev}
+      DB_USER: ${DB_USER:-app}
+      DB_PASSWORD: ${DB_PASSWORD:-app}
+      DB_NAME: ${DB_NAME:-app}
+      CO_AUTH_TOKEN: ${CO_AUTH_TOKEN:-dev-token}
+    restart: unless-stopped
+    volumes:
+      - app_logs:/var/log/app
+    networks: [appnet]
+
+  # Observability (kept in base so both envs can use; exposure is handled in overlays)
+  prometheus:
+    image: prom/prometheus:v2.55.0
+    volumes:
+      - prometheus_data:/prometheus
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    command: ["--config.file=/etc/prometheus/prometheus.yml","--storage.tsdb.retention.time=15d"]
+    restart: unless-stopped
+    networks: [appnet]
+
+  grafana:
+    image: grafana/grafana:11.2.0
+    volumes:
+      - grafana_data:/var/lib/grafana
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+    networks: [appnet]
+
+  redis-exporter:
+    image: oliver006/redis_exporter:v1.67.0
+    environment:
+      REDIS_ADDR: redis://redis:6379
+    restart: unless-stopped
+    networks: [appnet]
+
+  postgres-exporter:
+    image: prometheuscommunity/postgres-exporter:v0.15.0
+    environment:
+      DATA_SOURCE_NAME: postgresql://${DB_USER:-app}:${DB_PASSWORD:-app}@postgres:5432/${DB_NAME:-app}?sslmode=disable
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+    networks: [appnet]
