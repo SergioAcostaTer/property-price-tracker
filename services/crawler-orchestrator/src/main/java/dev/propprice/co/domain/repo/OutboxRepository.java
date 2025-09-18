@@ -3,6 +3,7 @@ package dev.propprice.co.domain.repo;
 import java.util.List;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -19,9 +20,6 @@ public interface OutboxRepository extends JpaRepository<Outbox, Long> {
       """, nativeQuery = true)
   List<Outbox> fetchUnsentOrdered(@Param("limit") int limit);
 
-  /**
-   * Fetch unsent messages that are ready for retry based on exponential backoff
-   */
   @Query(value = """
       select * from ing.outbox
       where sent_at is null
@@ -40,18 +38,13 @@ public interface OutboxRepository extends JpaRepository<Outbox, Long> {
       """, nativeQuery = true)
   List<Outbox> fetchUnsentOrderedWithRetry(@Param("limit") int limit);
 
-  /**
-   * Count messages that failed permanently
-   */
   @Query(value = """
       select count(*) from ing.outbox
       where sent_at is null and last_error like 'DEAD:%'
       """, nativeQuery = true)
   long countDeadMessages();
 
-  /**
-   * Clean up old successfully sent messages
-   */
+  @Modifying
   @Query(value = """
       delete from ing.outbox
       where sent_at is not null

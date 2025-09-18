@@ -10,6 +10,8 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.fasterxml.jackson.databind.JsonNode;
+
 import dev.propprice.co.domain.entity.Outbox;
 import dev.propprice.co.domain.repo.OutboxRepository;
 import lombok.RequiredArgsConstructor;
@@ -39,7 +41,7 @@ public class OutboxRelay {
     for (Outbox o : batch) {
       try {
         if (!shouldAttempt(o)) {
-          continue; // Skip messages not ready for retry
+          continue;
         }
 
         publishMessage(o);
@@ -52,18 +54,16 @@ public class OutboxRelay {
   }
 
   private boolean shouldAttempt(Outbox o) {
-    if (o.getAttempts() == 0) {
-      return true; // First attempt
-    }
+    if (o.getAttempts() == 0)
+      return true;
 
     if (o.getAttempts() >= MAX_ATTEMPTS) {
-      if (o.getSentAt() == null) { // Only mark as dead once
+      if (o.getSentAt() == null) {
         markAsDead(o);
       }
       return false;
     }
 
-    // Calculate next retry time using exponential backoff
     OffsetDateTime lastAttempt = o.getSentAt() != null ? o.getSentAt() : o.getCreatedAt();
     int backoffIndex = Math.min(o.getAttempts() - 1, BACKOFF_MINUTES.length - 1);
     OffsetDateTime nextRetry = lastAttempt.plusMinutes(BACKOFF_MINUTES[backoffIndex]);
@@ -76,23 +76,20 @@ public class OutboxRelay {
     String key = o.getKey() != null ? new String(o.getKey()) : null;
     String value = o.getValue().toString();
 
-    var headers = buildHeaders(o);
+    var headers = buildHeaders(o.getHeaders());
     ProducerRecord<String, String> record = new ProducerRecord<>(topic, null, key, value, headers);
 
-    // Synchronous send with timeout
-    kafka.send(record).get();
+    kafka.send(record).get(); // sync send
     log.debug("Published message id={} to topic={}", o.getId(), topic);
   }
 
-  private RecordHeaders buildHeaders(Outbox o) {
+  private RecordHeaders buildHeaders(JsonNode node) {
     var headers = new RecordHeaders();
-    if (o.getHeaders() != null && !o.getHeaders().isEmpty()) {
-      var fields = o.getHeaders().properties();
-      for (var entry : fields) {
-        String hKey = entry.getKey();
-        String hVal = entry.getValue().asText();
-        headers.add(hKey, hVal.getBytes());
-      }
+    var fields = node.properties();
+    for (var entry : fields) {
+      String hKey = entry.getKey();
+      String hVal = entry.getValue().asText();
+      headers.add(hKey, hVal.getBytes());
     }
     return headers;
   }
@@ -100,7 +97,7 @@ public class OutboxRelay {
   private void markSent(Outbox o) {
     o.setAttempts(o.getAttempts() + 1);
     o.setSentAt(OffsetDateTime.now());
-    o.setLastError(null); // Clear any previous error
+    o.setLastError(null);
     repo.save(o);
   }
 
@@ -110,18 +107,14 @@ public class OutboxRelay {
     repo.save(o);
 
     if (o.getAttempts() >= MAX_ATTEMPTS) {
-      log.error("Outbox message id={} failed permanently after {} attempts",
-          o.getId(), o.getAttempts(), e);
+      log.error("Outbox message id={} failed permanently after {} attempts", o.getId(), o.getAttempts(), e);
     } else {
-      log.warn("Outbox message id={} failed, attempt {}/{}",
-          o.getId(), o.getAttempts(), MAX_ATTEMPTS, e);
+      log.warn("Outbox message id={} failed, attempt {}/{}", o.getId(), o.getAttempts(), MAX_ATTEMPTS, e);
     }
   }
 
   private void markAsDead(Outbox o) {
     log.error("Marking outbox message id={} as dead after {} attempts", o.getId(), o.getAttempts());
-    // You could move to a dead letter table or set a flag
-    // For now, we'll leave it with the error message
     o.setLastError("DEAD: Exceeded maximum retry attempts");
     repo.save(o);
   }

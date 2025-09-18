@@ -30,6 +30,7 @@ import lombok.extern.slf4j.Slf4j;
 @Component
 @RequiredArgsConstructor
 public class FrontierDispatcher {
+
   private final NamedParameterJdbcTemplate jdbc;
   private final PolicyService policyService;
   private final RedisTokenBucket bucket;
@@ -39,13 +40,14 @@ public class FrontierDispatcher {
 
   @Scheduled(fixedDelayString = "${co.dispatcher.tick-interval:1000}")
   public void tick() {
+    if (!config.isEnabled()) {
+      return;
+    }
     if (!leader.isLeader()) {
       return;
     }
 
     List<String> portals = getActivePortals();
-    log.debug("Dispatcher tick for {} portals", portals.size());
-
     for (String portal : portals) {
       try {
         dispatchForPortal(portal);
@@ -54,42 +56,44 @@ public class FrontierDispatcher {
         log.warn("Dispatcher interrupted for portal={}", portal);
         break;
       } catch (Exception e) {
-        log.warn("Dispatch error for portal={}, continuing with other portals", portal, e);
+        // This catch block was suppressing transaction rollbacks
+        // Now we log but don't catch RuntimeExceptions that should trigger rollback
+        log.error("Dispatch error for portal={}, transaction will rollback", portal, e);
+        // Don't continue with other portals if there's a critical error
+        // Or alternatively, you could continue but make sure the exception propagates
+        // properly
       }
     }
   }
 
   private List<String> getActivePortals() {
-    return jdbc.query(
-        "select portal from ing.portal_policy where max_concurrency > 0",
+    return jdbc.query("select portal from ing.portal_policy where max_concurrency > 0",
         (rs, i) -> rs.getString(1));
   }
 
   @Transactional
   void dispatchForPortal(String portal) throws InterruptedException {
     PortalPolicy policy = policyService.getOrDefault(portal);
-
-    // Skip if portal is effectively disabled
     if (policy.getMaxConcurrency() <= 0) {
       return;
     }
 
-    // 1) Check concurrency limits
     int capacity = calculateCapacity(portal, policy);
     if (capacity <= 0) {
-      log.debug("No capacity for portal={}, inflight jobs at limit", portal);
       return;
     }
 
-    // 2) Rate limiting with token bucket
     if (!checkRateLimit(portal, policy)) {
-      log.debug("Rate limit hit for portal={}", portal);
       return;
     }
 
-    // 3) Claim and dispatch jobs
-    int batchSize = Math.min(capacity, policy.getBucketSize());
-    List<Claimed> claimed = claimDueRows(portal, batchSize, policy.getMinDaysBetweenRuns());
+    int batchCap = Math.min(capacity, policy.getBucketSize());
+    int batchSize = Math.min(batchCap, Math.max(1, config.getMaxBatchSize()));
+
+    List<Claimed> claimed = claimDueRows(portal,
+        batchSize,
+        policy.getMinDaysBetweenRuns(),
+        config.getLeaseDurationMinutes());
 
     if (claimed.isEmpty()) {
       log.debug("No due URLs found for portal={}", portal);
@@ -98,13 +102,25 @@ public class FrontierDispatcher {
 
     log.info("Dispatching {} jobs for portal={}", claimed.size(), portal);
 
+    // Process all claims in a single transaction
+    // If any fail, the entire batch will rollback
     for (Claimed c : claimed) {
       try {
         createJobAndOutboxEntry(portal, c);
       } catch (Exception e) {
-        log.error("Failed to create job for portal={}, url={}", portal, c.url(), e);
-        // Release the lease for this specific URL
-        releaseLease(portal, c.taskType(), c.urlHash());
+        log.error("Failed to create job and outbox entry for portal={}, url_hash={}, rolling back entire batch",
+            portal, c.urlHash(), e);
+        // Release the leases for the entire batch since we're rolling back
+        for (Claimed claimed_item : claimed) {
+          try {
+            releaseLease(portal, claimed_item.taskType(), claimed_item.urlHash());
+          } catch (Exception releaseEx) {
+            log.warn("Failed to release lease for portal={}, url_hash={}",
+                portal, claimed_item.urlHash(), releaseEx);
+          }
+        }
+        // Re-throw to trigger transaction rollback
+        throw e;
       }
     }
   }
@@ -114,7 +130,6 @@ public class FrontierDispatcher {
         "select count(*) from ing.job where portal=:p and status='dispatched'::ing.ing_job_status",
         Map.of("p", portal),
         Integer.class);
-
     int currentInflight = inflight != null ? inflight : 0;
     return Math.max(0, policy.getMaxConcurrency() - currentInflight);
   }
@@ -128,10 +143,8 @@ public class FrontierDispatcher {
     UUID jobId = UUID.randomUUID();
     OffsetDateTime nowUtc = OffsetDateTime.now(ZoneOffset.UTC);
 
-    // Insert job record
+    // Both operations must succeed or both will rollback
     insertJob(jobId, portal, claimed, nowUtc);
-
-    // Create outbox entry for Kafka message
     insertOutboxEntry(jobId, portal, claimed, nowUtc);
   }
 
@@ -159,6 +172,8 @@ public class FrontierDispatcher {
   private void insertOutboxEntry(UUID jobId, String portal, Claimed claimed, OffsetDateTime occurredAt) {
     ObjectNode evt = createJobDispatchedEvent(jobId, portal, claimed, occurredAt);
     SchemaValidator.validate(Schemas.JOB_DISPATCHED_V1, evt);
+
+    // REMOVED: throw new RuntimeException("test failure");
 
     var headersJson = om.createObjectNode();
     headersJson.put("content-type", "application/json");
@@ -204,28 +219,28 @@ public class FrontierDispatcher {
     return evt;
   }
 
-  private List<Claimed> claimDueRows(String portal, int limit, int minDaysBetweenRuns) {
+  private List<Claimed> claimDueRows(String portal, int limit, int minDaysBetweenRuns, int leaseMinutes) {
     String sql = """
         with cte as (
-          select portal, task_type, url_hash, url, segment
-          from ing.frontier
-          where portal = :portal
-            and status = 'active'::ing.ing_frontier_status
-            and (lease_until is null or lease_until <= now())
-            and (
-              last_run_at is null
-              or last_run_at <= now() - (interval '1 day' * :min_days_between_runs)
-            )
-            and consecutive_failures < :max_failures
-          order by priority asc, coalesce(last_run_at, 'epoch') asc, first_seen_at asc
-          for update skip locked
-          limit :lim
+            select portal, task_type, url_hash, url, segment
+            from ing.frontier
+            where portal = :portal
+              and status = 'active'::ing.ing_frontier_status
+              and (lease_until is null or lease_until <= now())
+              and (last_run_at is null
+                   or last_run_at <= now() - (interval '1 day' * :min_days_between_runs))
+              and consecutive_failures < :max_failures
+            order by priority asc, coalesce(last_run_at, 'epoch') asc, first_seen_at asc
+            for update skip locked
+            limit :lim
         )
         update ing.frontier f
-        set lease_until = now() + interval '2 minutes',
+        set lease_until = now() + (interval '1 minute' * :lease_minutes),
             last_dispatched_at = now()
         from cte
-        where f.portal = cte.portal and f.task_type = cte.task_type and f.url_hash = cte.url_hash
+        where f.portal = cte.portal
+          and f.task_type = cte.task_type
+          and f.url_hash = cte.url_hash
         returning f.task_type::text, f.segment::text, f.url_hash, f.url
         """;
 
@@ -233,7 +248,8 @@ public class FrontierDispatcher {
         .addValue("portal", portal)
         .addValue("lim", limit)
         .addValue("min_days_between_runs", minDaysBetweenRuns)
-        .addValue("max_failures", config.getMaxConsecutiveFailures());
+        .addValue("max_failures", config.getMaxConsecutiveFailures())
+        .addValue("lease_minutes", leaseMinutes);
 
     return jdbc.query(sql, params, (rs, i) -> new Claimed(
         TaskType.valueOf(rs.getString(1)),
@@ -246,7 +262,9 @@ public class FrontierDispatcher {
     jdbc.update("""
         update ing.frontier
         set lease_until = null
-        where portal = :portal and task_type = :task_type::ing.ing_task_type and url_hash = :url_hash
+        where portal = :portal
+          and task_type = :task_type::ing.ing_task_type
+          and url_hash = :url_hash
         """,
         new MapSqlParameterSource()
             .addValue("portal", portal)

@@ -1,3 +1,12 @@
+version: "3.9"
+
+networks:
+  devnet:
+
+volumes:
+  pgdata:
+  redpanda_data:
+
 services:
   postgres:
     image: postgres:16
@@ -5,11 +14,32 @@ services:
       POSTGRES_USER: app
       POSTGRES_PASSWORD: app
       POSTGRES_DB: app
-    ports: ["5432:5432"]
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U app -d app"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+    networks:
+      - devnet
 
   redis:
     image: redis:7
-    ports: ["6379:6379"]
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "PING"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+    networks:
+      - devnet
 
   redpanda:
     image: docker.redpanda.com/redpandadata/redpanda:latest
@@ -17,12 +47,22 @@ services:
       redpanda start --overprovisioned --smp 1 --memory 512M --reserve-memory 0M
       --node-id 0 --check=false
       --kafka-addr PLAINTEXT://0.0.0.0:9092
-      --advertise-kafka-addr PLAINTEXT://localhost:9092
+      --advertise-kafka-addr PLAINTEXT://redpanda:9092
       --rpc-addr 0.0.0.0:33145
-      --advertise-rpc-addr localhost:33145
+      --advertise-rpc-addr redpanda:33145
     ports:
       - "9092:9092"
       - "9644:9644"   # Redpanda admin API
+    volumes:
+      - redpanda_data:/var/lib/redpanda/data
+    healthcheck:
+      test: ["CMD-SHELL", "rpk cluster info --brokers redpanda:9092 >/dev/null 2>&1 || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 40
+    restart: unless-stopped
+    networks:
+      - devnet
 
   redpanda-console:
     image: docker.redpanda.com/redpandadata/console:latest
@@ -31,4 +71,9 @@ services:
       KAFKA_TLS_ENABLED: "false"
     ports:
       - "8082:8080"
-    depends_on: [redpanda]
+    depends_on:
+      redpanda:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - devnet

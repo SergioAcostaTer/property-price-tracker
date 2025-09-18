@@ -53,10 +53,19 @@ management:
       exposure:
         include: health,info,metrics,prometheus
 
+logging:
+  level:
+    root: info
+    dev.propprice.co: debug
+
 co:
   auth:
     token: "dev-token"
     enabled: true
-    consumer:
-      
-    
+
+  dispatcher:
+    enabled: true
+    tick-interval: 1000
+    max-consecutive-failures: 5
+    lease-duration-minutes: 2
+    max-batch-size: 50
